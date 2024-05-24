@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  pihole:
+    extends:
+      file: /opt/stacks/pihole/compose.yml
+      service: pihole
+  
+  stirling-pdf:
+    extends: 
+      file: /opt/stacks/stirling-pdf/compose.yml
+      service: stirling-pdf
+    networks:
+      - homelab
+  
+  caddy:
+    extends:
+      file: /opt/stacks/caddy/compose.yml
+      service: caddy 
+    networks:
+      - homelab
+  
+  #mealie:
+  #  extends:
+  #    file: /opt/stacks/mealie/compose.yml
+  #    service: mealie
+  #  networks:
+  #    - homelab
+
+networks:
+  homelab:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
