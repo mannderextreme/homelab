@@ -1,0 +1,11 @@
+pihole.local {
+    reverse_proxy pihole:8081
+    }
+
+pdf.local {
+    reverse_proxy stirling-pdf:8080
+}
+
+pihole.home.box {
+    reverse_proxy pihole:8081
+}
