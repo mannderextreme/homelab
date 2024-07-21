@@ -1,2 +1,9 @@
 .env
 *.save
+*.log
+photoprism/storage/*
+photprism/storage/*
+*.json
+pihole/etc-dnsmasq/*
+pihole/etc-dnsmasq.d/*
+pihole/etc-pihole/*

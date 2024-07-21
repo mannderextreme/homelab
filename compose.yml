@@ -1,6 +1,10 @@
-version: '3.8'
-
 services:
+  heimdall:
+    extends:
+      file: /opt/stacks/heimdall/compose.yml
+      service: heimdall
+    networks:
+      - homelab
   pihole:
     extends:
       file: /opt/stacks/pihole/compose.yml
@@ -20,12 +24,26 @@ services:
     networks:
       - homelab
   
-  #mealie:
-  #  extends:
-  #    file: /opt/stacks/mealie/compose.yml
-  #    service: mealie
-  #  networks:
-  #    - homelab
+  mealie:
+    extends:
+      file: /opt/stacks/mealie/compose.yml
+      service: mealie
+    networks:
+      - homelab
+
+  code:
+    extends:
+      file: /opt/stacks/code/compose.yml
+      service: code-server
+    networks:
+      - homelab
+  
+  photoprism:
+    extends:
+      file: /opt/stacks/photoprism/compose.yml
+      service: photoprism
+    networks:
+      - homelab
 
 networks:
   homelab:
@@ -34,3 +52,4 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  mealie_data:
