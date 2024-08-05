@@ -45,6 +45,13 @@ services:
     networks:
       - homelab
 
+  homeassistant: 
+    extends: 
+      file: /opt/stacks/homeassistant/compose.yml
+      service: homeassistant
+    networks:
+      - homelab
+
 networks:
   homelab:
     driver: bridge

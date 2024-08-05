@@ -30,3 +30,7 @@ photo.home.box:80 {
 prism.home.box:80 {
     reverse_proxy photoprism:2342
 }
+
+assistant.home.box:80 {
+    reverse_proxy homeassistant:8123
+}
