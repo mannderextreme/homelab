@@ -1,0 +1,49 @@
+---
+- hosts: kubernetes-nodes
+  tasks:
+  - name: Check if kubectl exists at destination.
+    ansible.builtin.stat:
+      path: /usr/local/bin/kubectl
+    register: kubectl
+
+  - name: Run the kubectl installation sequence.
+    block:
+      - name: Download kubectl binary with curl.
+        ansible.builtin.shell:
+          chdir: /tmp
+          cmd: curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          creates: /tmp/kubectl
+
+      - name: Download the checksum file.
+        ansible.builtin.shell:
+          chdir: /tmp
+          cmd: curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+          creates: /tmp/kubectl.sha256
+
+      - name: Verify the binary using the checksum file.
+        ansible.builtin.shell: echo "$(cat /tmp/kubectl.sha256) /tmp/kubectl" | sha256sum --check
+
+      - name: Install binary to destination.
+        ansible.builtin.shell:
+          cmd: install -o root -g root -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+          creates: /usr/local/bin/kubectl
+        become: true
+    when: not kubectl.stat.exists
+
+  - name: Add kubectl to bash completion.
+    block:
+      - name: Install bash-completion package.
+        ansible.builtin.package:
+          name: bash-completion
+          state: present
+        become: true
+      
+      - name: Get bash completion script for kubectl.
+        ansible.builtin.command: kubectl completion bash
+        register: kubectl_bash_completion
+
+      - name: Add kubectl bash completion script.
+        ansible.builtin.copy:
+          content: "{{ kubectl_bash_completion.stdout }}"
+          dest: /etc/bash_completion.d/kubectl
+        become: true

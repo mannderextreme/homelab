@@ -7,3 +7,5 @@ photprism/storage/*
 pihole/etc-dnsmasq/*
 pihole/etc-dnsmasq.d/*
 pihole/etc-pihole/*
+homeassistant/
+fedora/

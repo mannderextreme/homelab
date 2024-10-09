@@ -1,0 +1,8 @@
+---
+- hosts: kubernetes-nodes
+  tasks:
+  - name: Install Helm
+    ansible.builtin.shell:
+      cmd: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      creates: /usr/local/bin/helm
+    become: true

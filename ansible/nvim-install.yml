@@ -1,0 +1,10 @@
+- hosts: localhost
+  roles: 
+    - neovim
+  vars:
+    neovim_user_id: mannderextreme
+    neovim_configuration: |
+      set number
+      set tabstop=4
+      set shiftwidth=4
+
