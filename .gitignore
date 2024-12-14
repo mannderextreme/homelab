@@ -9,3 +9,6 @@ pihole/etc-dnsmasq.d/*
 pihole/etc-pihole/*
 homeassistant/
 fedora/
+*secrets.sh
+heimdall/**
+!heimdall/deployment.yml
