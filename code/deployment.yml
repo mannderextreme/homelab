@@ -1,0 +1,97 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vscode-pv
+  labels:
+    app: vscode
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /var/pool/docker/vscode
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vscode-pvc
+spec:
+  storageClassName: ""
+  selector:
+    matchLabels:
+      app: vscode
+  resources:
+    requests:
+      storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vscode
+spec:
+  selector:
+    matchLabels:
+      app: vscode
+  template:
+    metadata:
+      labels:
+        app: vscode
+    spec:
+      containers:
+      - name: vscode
+        image: lscr.io/linuxserver/code-server:latest
+        env:
+          - name: PUID
+            value: "1000"
+          - name: PGID
+            value: "1000"
+          - name: TZ
+            value: Etc/UTC
+        volumeMounts:
+          - mountPath: /config
+            name: vscode-storage
+        resources:
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 8443
+      volumes:
+        - name: vscode-storage
+          persistentVolumeClaim:
+            claimName: vscode-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vscode
+spec:
+  selector:
+    app: vscode
+  ports:
+  - port: 1234
+    targetPort: 8443
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vscode-ingress
+spec:
+  ingressClassName: traefik  # Specify the Ingress class here
+  rules:
+    - host: code.home.box
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vscode
+                port:
+                  number: 1234
