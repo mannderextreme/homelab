@@ -1,0 +1,256 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: immich
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: immich-env
+  namespace: immich
+type: Opaque
+stringData:
+  # From /home/rene/homelab/immich/.env
+  DB_PASSWORD: your_db_password
+  DB_USERNAME: your_db_username
+  DB_DATABASE_NAME: your_db_name
+  # Add other environment variables as needed
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-upload-pvc
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteMany  # Adjust based on your storage class
+  resources:
+    requests:
+      storage: 100Gi  # Set appropriate size
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-db-pvc
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-model-cache-pvc
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-redis
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-redis
+  template:
+    metadata:
+      labels:
+        app: immich-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:6.2-alpine@sha256:d6c2911ac51b289db208767581a5d154544f2b2fe4914ea5056443f62dc6e900
+          args: ["redis-server", "--appendonly", "yes"]
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: immich-redis
+  namespace: immich
+spec:
+  selector:
+    app: immich-redis
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-postgres
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-postgres
+  template:
+    metadata:
+      labels:
+        app: immich-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: tensorchord/pgvecto-rs:pg14-v0.2.0@sha256:90724186f0a3517cf6914295b5ab410db9ce23190a2d9d0b9dd6463e3fa298f0
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: immich-env
+                  key: DB_PASSWORD
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: immich-env
+                  key: DB_USERNAME
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: immich-env
+                  key: DB_DATABASE_NAME
+            - name: POSTGRES_INITDB_ARGS
+              value: '--data-checksums'
+          args:
+            - "postgres"
+            - "-c"
+            - "shared_preload_libraries=vectors.so"
+            - "-c"
+            - 'search_path="$user", public, vectors'
+            - "-c"
+            - "logging_collector=on"
+            - "-c"
+            - "max_wal_size=2GB"
+            - "-c"
+            - "shared_buffers=512MB"
+            - "-c"
+            - "wal_compression=on"
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: immich-db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: immich-postgres
+  namespace: immich
+spec:
+  selector:
+    app: immich-postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-server
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-server
+  template:
+    metadata:
+      labels:
+        app: immich-server
+    spec:
+      containers:
+        - name: immich-server
+          image: ghcr.io/immich-app/immich-server:release
+          envFrom:
+            - secretRef:
+                name: immich-env
+          ports:
+            - containerPort: 3001
+          volumeMounts:
+            - name: upload-volume
+              mountPath: /usr/src/app/upload
+            - name: localtime
+              mountPath: /etc/localtime
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: upload-volume
+          persistentVolumeClaim:
+            claimName: immich-upload-pvc
+        - name: localtime
+          hostPath:
+            path: /etc/localtime
+            type: File
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: immich-server
+  namespace: immich
+spec:
+  selector:
+    app: immich-server
+  ports:
+    - protocol: TCP
+      port: 8081
+      targetPort: 3001
+  type: ClusterIP
